@@ -42,9 +42,49 @@ N.N.N.B. Now you have two levels of structure: subject and study. Should this im
 N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages (warning: Time-consuming to learn as the documentation is sparse, but totally worth it)
 
 
-
-
-arigj
 ```{r}
+library(tidyverse)
+df <- read.csv("df_before_models-kopi.csv")
+
+
+
+
+
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
