@@ -43,5 +43,37 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 
 
 
-```{r}
+```{r loading data and creating logreg model}
+library(lme4)
+
+# loading dataframe from last time
+df <- read.csv("df_before_models-kopi.csv")
+
+# let's use pause duration as out best aucustic feature, because that one has the highest effects size estimate from the last part. 
+# It's also the feature that had the highest Hedge's G in the meta analysis. 
+
+# making sure Diagnosis as a factor to use for the logistic regression
+df$Diagnosis <- as.factor(df$Diagnosis)
+
+# making our first model
+just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
+
+# we use subject ID as random intercept because of repeated measures. 
+# We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 ```
+
+```{r calculating performance measures - accuracy, sensitivity, specificity, PPV, NPV, ROC curve}
+# If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) would't it be a good idea to create a function that calculates and saves all 6 measures?
+
+# look to the lecture to see how measures are found
+
+
+```
+
+```{r cross-validation}
+# The following link explains choice of number of folds:
+# https://datascience.stackexchange.com/questions/28158/how-to-calculate-the-fold-number-k-fold-in-cross-validation
+
+
+```
+
