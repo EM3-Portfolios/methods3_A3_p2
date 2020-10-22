@@ -43,8 +43,10 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 
 
 
-```{r loading data and creating logreg model}
+```{r loading data and creating logreg model + lots of trial and error with graphs and outliers}
 library(lme4)
+library(tidyverse)
+library(caret)
 
 # loading dataframe from last time
 df <- read.csv("df_before_models-kopi.csv")
@@ -60,15 +62,94 @@ just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, f
 
 # we use subject ID as random intercept because of repeated measures. 
 # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
+
+summary(just_pausedur_model)
+# wait... pause_duration is not even significant... le'ts test with the other features...
+just_variability_model <- glmer(Diagnosis ~ sd_f0 + (1 | ID), data = df, family = "binomial")
+just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
+just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial")
+
+summary(just_variability_model)
+summary(just_proportion_model)
+summary(just_speechrate_model) # this is the only one that has ANY *** on fixed effect !
+
+
+
+# trying things:
+ggplot(df, aes(pause_duration, scz)) + 
+  geom_jitter(height = 0.05) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"))
+
+ggplot(df, aes(sd_f0, scz)) +     # sd_f0 scores are copied for each ID. multiple of the same values cause the stripes in the graph.
+  geom_jitter(height = 0.05) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"))
+
+ggplot(df, aes(proportion_of_spoken_time, scz)) + 
+  geom_jitter(height = 0.05) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"))
+
+ggplot(df, aes(speechrate..nsyll.dur., scz)) + 
+  geom_jitter(height = 0.05) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"))
+
+
+# I will now try to remove the outlier from pause_duration
+#Remove outliers
+df_no_out<-subset(df,df$pause_duration<mean(df$pause_duration)+3*sd(df$pause_duration)) 
+#removing cases where pause_duration is more than 3 sd away from the mean - common proceduce given definition of normal dis.
+
+ggplot(df_no_out, aes(pause_duration, scz, color = ID)) + 
+  geom_jitter(height = 0.05) +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"))
+# wait... if we only have one data point for each ID, then why do we have ID ans random intercept? do we only have 1 obs per ID?
+# ok speechrate..nsyll.dur. is different, pause_duration is different, proportion is different
+# sd_f0 is the same for one ID. (so for this one it woudn't make sense to have random ID? is that what that means? or only 1 per ID at least)
+
+
+
+# now i need to make a new model without the outlier and use summary to see if there is significance now.
+no_out_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df_no_out, family = "binomial")
+summary(no_out_pausedur_model) # still no
+
+ggplot(df, aes(ID, Diagnosis))+
+  geom_point()
 ```
 
 ```{r calculating performance measures - accuracy, sensitivity, specificity, PPV, NPV, ROC curve}
 # If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) would't it be a good idea to create a function that calculates and saves all 6 measures?
 
 # look to the lecture to see how measures are found
+# For this code right now I am using the speechrate..nsyll.dur. model because it seems to not be problematic...
 
+
+# first we need to define this function: https://sebastiansauer.github.io/convert_logit2prob/
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+# we have to make R stop using numbers like 0.0004835312 instead of 4.835312e-04 (scientific notation) because otherwise the "Control" fucks up
+options(scipen = 999)
+
+# then here is the confusion matrix code, taken from the powerpoint of this week's lecture
+df$pred_speechrate <- logit2prob(predict(just_speechrate_model))
+df$pred_speechrate[df$pred_speechrate >0.5] = "Schizophrenia"
+df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong here - i found out why! it's because of scientific notation!
+df$pred_speechrate <-  as.factor(df$pred_speechrate)
+df$Diagnosis <- as.factor(df$Diagnosis)
+confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
+
+# OK, accuracy, sensitivity, specificity, PPV and NPV are all 1. Very sus
+# Let's look at ROC 
 
 ```
+
+
+```{r making a function to calculate performance measures}
+
+```
+
 
 ```{r cross-validation}
 # The following link explains choice of number of folds:
