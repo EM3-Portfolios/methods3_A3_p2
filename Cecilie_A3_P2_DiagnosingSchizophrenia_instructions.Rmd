@@ -44,18 +44,67 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 
 ```{r}
 library(tidyverse)
-df <- read.csv("df_before_models-kopi.csv")
+library(lme4)
+library(pROC)
+install.packages('caret', dependencies = TRUE)
 
-
-
-
-
+df <- read_csv("df_before_models-kopi.csv")
 
 ```
 
+```{r}
+df$Diagnosis <- as.factor(df$Diagnosis)
+
+just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
 
 
+summary(just_pausedur_model)
+# wait... pause_duration is not even significant... le'ts test with the other features...
+just_variability_model <- glmer(Diagnosis ~ sd_f0 + (1 | ID), data = df, family = "binomial")
+just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
+just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial")
 
+summary(just_variability_model)
+summary(just_proportion_model)
+summary(just_speechrate_model)
+
+```
+
+```{r}
+#speeachrate is the only significant one so we will prosed with that one
+```
+
+
+```{r making the forlds}
+#################
+# meaning unbalanced folds. The folds have to be balanced, so how do we tell them to do that?
+pacman::p_load(groupdata2)
+
+# we want to add a column to the df that gives a number to different parts of the dataset (folds)
+df$ID <- as.factor(df$ID)
+df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
+##################
+```
+
+
+```{r}
+# first we need to define this function: https://sebastiansauer.github.io/convert_logit2prob/
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+
+# we have to make R stop using numbers like 0.0004835312 instead of 4.835312e-04 (scientific notation) because otherwise the "Control" fucks up
+options(scipen = 999)
+
+# then here is the confusion matrix code, taken from the powerpoint of this week's lecture
+df$pred_speechrate <- logit2prob(predict(just_speechrate_model))
+df$pred_speechrate[df$pred_speechrate >0.5] = "Schizophrenia"
+df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong here - i found out why! it's because of scientific notation!
+df$pred_speechrate <-  as.factor(df$pred_speechrate)
+caret::confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
+```
 
 
 
