@@ -47,6 +47,8 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 library(lme4)
 library(tidyverse)
 library(caret)
+install.packages(groupdata2)
+library(groupdata2)
 
 # loading dataframe from last time
 df <- read.csv("df_before_models-kopi.csv")
