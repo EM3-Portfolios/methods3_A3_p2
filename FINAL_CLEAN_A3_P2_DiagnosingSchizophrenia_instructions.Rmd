@@ -42,98 +42,98 @@ N.N.N.B. Now you have two levels of structure: subject and study. Should this im
 N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages (warning: Time-consuming to learn as the documentation is sparse, but totally worth it)
 
 
-```{r}
-library(tidyverse)
+
+```{r loading data and creating models}
 library(lme4)
+library(tidyverse)
+library(caret)
 library(pROC)
-install.packages('caret', dependencies = TRUE)
 
-df <- read_csv("df_before_models-kopi.csv")
+# loading dataframe from last time
+df <- read.csv("df_before_models-kopi.csv")
 
-```
-
-```{r}
+# making sure Diagnosis as a factor to use for the logistic regression
 df$Diagnosis <- as.factor(df$Diagnosis)
 
+# making our models - only one fixed effect
+    # we use subject ID as random intercept because of repeated measures. 
+    # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
-
-
-summary(just_pausedur_model)
-# wait... pause_duration is not even significant... le'ts test with the other features...
 just_variability_model <- glmer(Diagnosis ~ sd_f0 + (1 | ID), data = df, family = "binomial")
 just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
 just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial")
 
+# Assessing the models
+summary(just_pausedur_model)
 summary(just_variability_model)
 summary(just_proportion_model)
-summary(just_speechrate_model)
-
-```
-
-```{r}
-#speeachrate is the only significant one so we will prosed with that one
+summary(just_speechrate_model) # this is the only one that has ANY *** on fixed effect !
 ```
 
 
-```{r making the forlds}
-#################
-# meaning unbalanced folds. The folds have to be balanced, so how do we tell them to do that?
-pacman::p_load(groupdata2)
+```{r calculating performance measures - accuracy, sensitivity, specificity, PPV, NPV, ROC curve}
 
-# we want to add a column to the df that gives a number to different parts of the dataset (folds)
-df$ID <- as.factor(df$ID)
-df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
-##################
-```
-
-
-```{r}
-# first we need to define this function: https://sebastiansauer.github.io/convert_logit2prob/
+# First we need to define this function to define the predicted values (we need those for both the ROC and confusion matrix): 
+# source: https://sebastiansauer.github.io/convert_logit2prob/
 logit2prob <- function(logit){
   odds <- exp(logit)
   prob <- odds / (1 + odds)
   return(prob)
 }
 
-# we have to make R stop using numbers like 0.0004835312 instead of 4.835312e-04 (scientific notation) because otherwise the "Control" fucks up
+# we have to make R stop using numbers like 0.0004835312 instead of 4.835312e-04 (scientific notation) to avoid a problem in confmat code
 options(scipen = 999)
 
-# then here is the confusion matrix code, taken from the powerpoint of this week's lecture
+
+
+# This shouldn't be included in the final code, but we have to run this before the rest of this chunk in order to not get accuracy = 1.
+#
+pacman::p_load(groupdata2)
+df$ID <- as.factor(df$ID)
+df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
+#
+
+
+
+# Confusion Matrix - here is the confusion matrix code, taken and adapted from the powerpoint of this week's lecture (continued below)
 df$pred_speechrate <- logit2prob(predict(just_speechrate_model))
+
+# ROC curve - we have to calculate ROC before we rename the pred values to "Schizophrenia" or "Control" because it only handles numeric values
+rocCurve_speechrate <- roc(response = df$Diagnosis, predictor = df$pred_speechrate)
+auc(rocCurve_speechrate)
+ci(rocCurve_speechrate)
+plot(rocCurve_speechrate, legacy.axes = TRUE)
+
+# Confusion Matrix - this is the rest of the confusion matrix code
 df$pred_speechrate[df$pred_speechrate >0.5] = "Schizophrenia"
 df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong here - i found out why! it's because of scientific notation!
 df$pred_speechrate <-  as.factor(df$pred_speechrate)
-caret::confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
+df$Diagnosis <- as.factor(df$Diagnosis)
+confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
+
 ```
 
 
+```{r making a function to calculate performance measures}
+# If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) it may be a good idea to create a function that calculates and saves all 6 measures
+```
 
 
+```{r cross-validation}
+# The following link explains choice of number of folds:
+# https://datascience.stackexchange.com/questions/28158/how-to-calculate-the-fold-number-k-fold-in-cross-validation
 
+# a problem you may run into when validating: balanced and unbalanced data
+# meaning unbalanced folds. The folds have to be balanced, so how do we tell them to do that?
+pacman::p_load(groupdata2)
 
+# we want to add a column to the df that gives a number to different parts of the dataset (folds)
+df$ID <- as.factor(df$ID)
+df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
+  #cat_col means categorizing column 
+  # also if we have repeated measures we don't want to split one participant over different fold
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ggplot(df, aes(.folds, Diagnosis))+
+  geom_jitter()
+```
 
