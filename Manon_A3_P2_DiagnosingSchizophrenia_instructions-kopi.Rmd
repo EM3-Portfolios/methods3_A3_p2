@@ -146,9 +146,9 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 # Let's look at ROC 
 
 rocCurve_speechrate <- roc(response = df$Diagnosis, predictor = df$pred_speechrate)
-auc(rocCurve_speechrate)
+auc(rocCurve_speechrate)# this is the ROC curve value we are looking for :-)
 ci(rocCurve_speechrate)
-plot(rocCurve_speechrate, legacy.axes = TRUE)
+plot(rocCurve_speechrate, legacy.axes = TRUE) 
 
 ```
 
