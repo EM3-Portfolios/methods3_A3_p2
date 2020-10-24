@@ -71,7 +71,8 @@ df$sd_f0_2 <- df$sd_f0
 
 # Now we replace all of the 
 df$sd_f0_2 <- ifelse(df$trial_number %in% c(2:10), NA, df$sd_f0_2)
-
+#ungroup
+df <- ungroup(df)
 
 
 # making our first model
@@ -162,31 +163,62 @@ options(scipen = 999)
 
 # then here is the confusion matrix code, taken from the powerpoint of this week's lecture
 df$pred_speechrate <- logit2prob(predict(just_speechrate_model))
-df$pred_speechrate[df$pred_speechrate >0.5] = "Schizophrenia"
-df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong here - i found out why! it's because of scientific notation!
-df$pred_speechrate <-  as.factor(df$pred_speechrate)
-df$Diagnosis <- as.factor(df$Diagnosis)
-confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
 
-# OK, accuracy, sensitivity, specificity, PPV and NPV are all 1. Very sus
 # Let's look at ROC 
-
 rocCurve_speechrate <- roc(response = df$Diagnosis, predictor = df$pred_speechrate)
 auc(rocCurve_speechrate)# this is the ROC curve value we are looking for :-)
 ci(rocCurve_speechrate)
 plot(rocCurve_speechrate, legacy.axes = TRUE) 
 
+df$pred_speechrate[df$pred_speechrate >0.5] = "Schizophrenia"
+df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong here - i found out why! it's because of scientific notation!
+df$pred_speechrate <-  as.factor(df$pred_speechrate)
+df$Diagnosis <- as.factor(df$Diagnosis)
+dd <- confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
+dd$overall['Accuracy']
+dd$byClass['Sensitivity']
+dd$byClass['Specificity']
+dd$byClass['Pos Pred Value']
+dd$byClass['Neg Pred Value']
+dd
+str(dd) # ugh, beautiful!   https://stackoverflow.com/questions/24348973/how-to-retrieve-overall-accuracy-value-from-confusionmatrix-in-r
+
+
+# OK, accuracy, sensitivity, specificity, PPV and NPV are all 1. Very sus
 ```
 
 
 ```{r making a function to calculate performance measures}
-roc_and_confmat <- function(model, pred_predictor_name){
-  df$pred_predictor_name <- logit2prob(predict(model))
+# do i have to make the pred column before and that take it as input in the function?
+df$pred_pausedur <- logit2prob(predict(just_pausedur_model))
+df$pred_proportion <- logit2prob(predict(just_proportion_model))
+#df$pred_variability <- logit2prob(predict(just_variability_model))
 
-  return(predictor_name)
+roc_and_confmat <- function(model, pred_column){
+  # first line of confusion matrix
+  pred_column <- logit2prob(predict(model))
+  # roc curve
+  rocCurve <- roc(response = df$Diagnosis, predictor = pred_column)
+  areaUnderCurve <- auc(rocCurve)
+  aucConfidenceInterval <- ci(rocCurve)
+  # now back to confusion matrix
+  pred_column[pred_column >0.5] = "Schizophrenia"
+  pred_column[pred_column <=0.5] = "Control"
+  pred_column <- as.factor(pred_column)
+  Diagnosis <- as.factor(df$Diagnosis)
+  confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis, positive = "Schizophrenia")
+  # collect what we want to return
+  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value'], areaUnderCurve))
+  return(ResultList)
 }
 
-roc_and_confmat(just_speechrate_model, pred_speechrate)
+roc_and_confmat(just_pausedur_model, df$pred_pausedur)
+# oooh no it says "Fejl: `data` and `reference` should be factors with the same levels."
+# after i changed a mistake from data = df$pred_speechrate to df$pred_column :(
+
+
+# oh wait, it actually doesn't save the pred_column to the df, so I wonder if i could just leave that secodnary input out and use df$pred
+
 ```
 
 
