@@ -127,7 +127,7 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 ```{r making a function to calculate performance measures}
 # If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) it may be a good idea to create a function that calculates and saves all 6 measures
 
-roc_and_confmat <- function(model, pred_column){
+roc_and_confmat <- function(model){
   # first line of confusion matrix
   pred_column <- logit2prob(predict(model))
   # roc curve
@@ -141,13 +141,16 @@ roc_and_confmat <- function(model, pred_column){
   Diagnosis <- as.factor(df$Diagnosis)
   confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis, positive = "Schizophrenia")
   # collect what we want to return
-  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value'], areaUnderCurve))
+  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value']), areaUnderCurve)
   return(ResultList)
 }
 
 # This function will return accuracy, sensitivity, specificity, PPV, NPV in that order, and then area under the roc curve as the last value.
 # Now let's try it on all our 4 models
-roc_and_confmat(just_pausedur_model, df$pred_pausedur)
+roc_and_confmat(just_pausedur_model)
+# roc_and_confmat(just_variability_model) # doesn't work because of different lenghts of pred_column and df$Diagnosis
+roc_and_confmat(just_proportion_model)
+roc_and_confmat(just_speechrate_model)
 ```
 
 
