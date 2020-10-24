@@ -61,6 +61,9 @@ df <- df %>%
   mutate(trial_number = row_number())
 df$sd_f0_2 <- df$sd_f0
 df$sd_f0_2 <- ifelse(df$trial_number %in% c(2:10), NA, df$sd_f0_2)
+# We need to ungroup afterewards, because the code (confusion matrix and roc != 1) works if i don't run these lines above
+df <- ungroup(df)
+
 
 # Making our models - only one fixed effect
     # we use subject ID as random intercept because of repeated measures. 
@@ -74,9 +77,7 @@ just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), da
 summary(just_pausedur_model)
 summary(just_variability_model)
 summary(just_proportion_model)
-summary(just_speechrate_model)
-
-# Reflection - now none of our models have any signifant p-values (after we fixed the 'could not converge' issue in the speechrate model)
+summary(just_speechrate_model) # this is the only one that has ANY *** on fixed effect !
 ```
 
 
