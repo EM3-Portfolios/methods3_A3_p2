@@ -61,9 +61,13 @@ df <- df %>%
   mutate(trial_number = row_number())
 df$sd_f0_2 <- df$sd_f0
 df$sd_f0_2 <- ifelse(df$trial_number %in% c(2:10), NA, df$sd_f0_2)
+
+# And also making a Diagnosis column with values for only the rows with sd_f0_2 values
+df$Diagnosis2 <- df$Diagnosis
+df$Diagnosis2 <- ifelse(df$trial_number %in% c(2:10), NA, df$Diagnosis2)
+
 # We need to ungroup afterewards, because the code (confusion matrix and roc != 1) works if i don't run these lines above
 df <- ungroup(df)
-
 
 # Making our models - only one fixed effect
     # we use subject ID as random intercept because of repeated measures. 
