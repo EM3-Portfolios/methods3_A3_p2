@@ -43,163 +43,95 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 
 
 
-```{r loading data and creating logreg model + lots of trial and error with graphs and outliers}
+```{r loading data and creating models}
 library(lme4)
 library(tidyverse)
 library(caret)
-<<<<<<< HEAD
-install.packages(groupdata2)
-library(groupdata2)
-=======
 library(pROC)
->>>>>>> 93e56a36a665d95fa69a92355479e6e16958f83f
 
-# loading dataframe from last time
+# Loading dataframe from last time
 df <- read.csv("df_before_models-kopi.csv")
 
-# let's use pause duration as out best aucustic feature, because that one has the highest effects size estimate from the last part. 
-# It's also the feature that had the highest Hedge's G in the meta analysis. 
-
-# making sure Diagnosis as a factor to use for the logistic regression
+# Making sure Diagnosis as a factor to use for the logistic regression
 df$Diagnosis <- as.factor(df$Diagnosis)
 
-
-
-# To make the pitch variability model (where we do not have repeated measures) we want to make a column that only has one pitch variability value pr participant, and NA for the rest of the trials.
-# Adding a column for trial number (we assume that the data is arranged by trial, but it doesn't matter anyways):
+# Fixing the pitch variability variable - making sure sd_f0 only has one value per ID istead of 10 identical ones (as new column)
 df <- df %>%
   group_by(ID) %>%
   mutate(trial_number = row_number())
-
-# Copying the pitch variability row:
 df$sd_f0_2 <- df$sd_f0
-
-# Now we replace all of the 
 df$sd_f0_2 <- ifelse(df$trial_number %in% c(2:10), NA, df$sd_f0_2)
-#ungroup
+
+# And also making a Diagnosis column with values for only the rows with sd_f0_2 values
+df$Diagnosis2 <- df$Diagnosis
+df$Diagnosis2 <- ifelse(df$trial_number %in% c(2:10), NA, df$Diagnosis2)
+
+# We need to ungroup afterewards, because the code (confusion matrix and roc != 1) works if i don't run these lines above
 df <- ungroup(df)
 
-
-# making our first model
+# Making our models - only one fixed effect
+    # we use subject ID as random intercept because of repeated measures. 
+    # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
-
-# we use subject ID as random intercept because of repeated measures. 
-# We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
-
-summary(just_pausedur_model)
-# wait... pause_duration is not even significant... le'ts test with the other features...
-just_variability_model <- glmer(Diagnosis ~ sd_f0 + (1 | ID), data = df, family = "binomial")
+just_variability_model <- glm(Diagnosis2 ~ sd_f0_2, data = df)
 just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
-just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial")
+just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
+# Assessing the models
+summary(just_pausedur_model)
 summary(just_variability_model)
 summary(just_proportion_model)
 summary(just_speechrate_model) # this is the only one that has ANY *** on fixed effect !
-
-
-
-
-# models after Lærke's adjustments:
-just_variability_model2 <- glm(Diagnosis ~ sd_f0_2, data = df, family = "binomial")
-just_speechrate_model2 <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-
-summary(just_variability_model2)
-summary(just_speechrate_model2)
-
-
-
-# trying things:
-ggplot(df, aes(pause_duration, scz)) + 
-  geom_jitter(height = 0.05) +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"))
-
-ggplot(df, aes(sd_f0, scz)) +     # sd_f0 scores are copied for each ID. multiple of the same values cause the stripes in the graph.
-  geom_jitter(height = 0.05) +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"))
-
-ggplot(df, aes(proportion_of_spoken_time, scz)) + 
-  geom_jitter(height = 0.05) +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"))
-
-ggplot(df, aes(speechrate..nsyll.dur., scz)) + 
-  geom_jitter(height = 0.05) +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"))
-
-
-# I will now try to remove the outlier from pause_duration
-#Remove outliers
-df_no_out<-subset(df,df$pause_duration<mean(df$pause_duration)+3*sd(df$pause_duration)) 
-#removing cases where pause_duration is more than 3 sd away from the mean - common proceduce given definition of normal dis.
-
-ggplot(df_no_out, aes(pause_duration, scz, color = ID)) + 
-  geom_jitter(height = 0.05) +
-  geom_smooth(method = "glm", method.args = list(family = "binomial"))
-# wait... if we only have one data point for each ID, then why do we have ID ans random intercept? do we only have 1 obs per ID?
-# ok speechrate..nsyll.dur. is different, pause_duration is different, proportion is different
-# sd_f0 is the same for one ID. (so for this one it woudn't make sense to have random ID? is that what that means? or only 1 per ID at least)
-
-
-
-# now i need to make a new model without the outlier and use summary to see if there is significance now.
-no_out_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df_no_out, family = "binomial")
-summary(no_out_pausedur_model) # still no
-
-ggplot(df, aes(ID, Diagnosis))+
-  geom_point()
 ```
 
 
 ```{r calculating performance measures - accuracy, sensitivity, specificity, PPV, NPV, ROC curve}
-# If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) would't it be a good idea to create a function that calculates and saves all 6 measures?
 
-# look to the lecture to see how measures are found
-# For this code right now I am using the speechrate..nsyll.dur. model because it seems to not be problematic...
-
-
-# first we need to define this function: https://sebastiansauer.github.io/convert_logit2prob/
+# First we need to define this function to define the predicted values (we need those for both the ROC and confusion matrix): 
+# source: https://sebastiansauer.github.io/convert_logit2prob/
 logit2prob <- function(logit){
   odds <- exp(logit)
   prob <- odds / (1 + odds)
   return(prob)
 }
 
-# we have to make R stop using numbers like 0.0004835312 instead of 4.835312e-04 (scientific notation) because otherwise the "Control" fucks up
+# we have to make R stop using numbers like 0.0004835312 instead of 4.835312e-04 (scientific notation) to avoid a problem in confmat code
 options(scipen = 999)
 
-# then here is the confusion matrix code, taken from the powerpoint of this week's lecture
+
+
+# This shouldn't be included in the final code, but we have to run this before the rest of this chunk in order to not get accuracy = 1.
+#
+pacman::p_load(groupdata2)
+df$ID <- as.factor(df$ID)
+df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
+#
+
+
+
+# Confusion Matrix - here is the confusion matrix code, taken and adapted from the powerpoint of this week's lecture (continued below)
 df$pred_speechrate <- logit2prob(predict(just_speechrate_model))
 
-# Let's look at ROC 
+# ROC curve - we have to calculate ROC before we rename the pred values to "Schizophrenia" or "Control" because it only handles numeric values
 rocCurve_speechrate <- roc(response = df$Diagnosis, predictor = df$pred_speechrate)
-auc(rocCurve_speechrate)# this is the ROC curve value we are looking for :-)
+auc(rocCurve_speechrate)
 ci(rocCurve_speechrate)
-plot(rocCurve_speechrate, legacy.axes = TRUE) 
+plot(rocCurve_speechrate, legacy.axes = TRUE)
 
+# Confusion Matrix - this is the rest of the confusion matrix code
 df$pred_speechrate[df$pred_speechrate >0.5] = "Schizophrenia"
 df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong here - i found out why! it's because of scientific notation!
 df$pred_speechrate <-  as.factor(df$pred_speechrate)
 df$Diagnosis <- as.factor(df$Diagnosis)
-dd <- confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
-dd$overall['Accuracy']
-dd$byClass['Sensitivity']
-dd$byClass['Specificity']
-dd$byClass['Pos Pred Value']
-dd$byClass['Neg Pred Value']
-dd
-str(dd) # ugh, beautiful!   https://stackoverflow.com/questions/24348973/how-to-retrieve-overall-accuracy-value-from-confusionmatrix-in-r
+confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
 
-
-# OK, accuracy, sensitivity, specificity, PPV and NPV are all 1. Very sus
 ```
 
 
 ```{r making a function to calculate performance measures}
-# do i have to make the pred column before and that take it as input in the function?
-df$pred_pausedur <- logit2prob(predict(just_pausedur_model))
-df$pred_proportion <- logit2prob(predict(just_proportion_model))
-#df$pred_variability <- logit2prob(predict(just_variability_model))
+# If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) it may be a good idea to create a function that calculates and saves all 6 measures
 
-roc_and_confmat <- function(model, pred_column){
+roc_and_confmat <- function(model){
   # first line of confusion matrix
   pred_column <- logit2prob(predict(model))
   # roc curve
@@ -213,17 +145,38 @@ roc_and_confmat <- function(model, pred_column){
   Diagnosis <- as.factor(df$Diagnosis)
   confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis, positive = "Schizophrenia")
   # collect what we want to return
-  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value'], areaUnderCurve))
+  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value']), areaUnderCurve)
   return(ResultList)
 }
 
-roc_and_confmat(just_pausedur_model, df$pred_pausedur)
-# oooh no it says "Fejl: `data` and `reference` should be factors with the same levels."
-# after i changed a mistake from data = df$pred_speechrate to df$pred_column :(
+roc_and_confmat2 <- function(model){
+  # first line of confusion matrix
+  pred_column <- logit2prob(predict(model))
+  # roc curve
+  rocCurve <- roc(response = df$Diagnosis2, predictor = pred_column)
+  areaUnderCurve <- auc(rocCurve)
+  aucConfidenceInterval <- ci(rocCurve)
+  # now back to confusion matrix
+  pred_column[pred_column >0.5] = "Schizophrenia"
+  pred_column[pred_column <=0.5] = "Control"
+  pred_column <- as.factor(pred_column)
+  Diagnosis <- as.factor(df$Diagnosis2)
+  confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis2, positive = "Schizophrenia")
+  # collect what we want to return
+  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value']), areaUnderCurve)
+  return(ResultList)
+}
 
 
-# oh wait, it actually doesn't save the pred_column to the df, so I wonder if i could just leave that secodnary input out and use df$pred
 
+
+
+# This function will return accuracy, sensitivity, specificity, PPV, NPV in that order, and then area under the roc curve as the last value.
+# Now let's try it on all our 4 models
+roc_and_confmat(just_pausedur_model)
+roc_and_confmat2(just_variability_model) # doesn't work because of different lenghts of pred_column and df$Diagnosis
+roc_and_confmat(just_proportion_model)
+roc_and_confmat(just_speechrate_model)
 ```
 
 
