@@ -61,15 +61,19 @@ df <- df %>%
   mutate(trial_number = row_number())
 df$sd_f0_2 <- df$sd_f0
 df$sd_f0_2 <- ifelse(df$trial_number %in% c(2:10), NA, df$sd_f0_2)
+
+# And also making a Diagnosis column with values for only the rows with sd_f0_2 values
+df$Diagnosis2 <- df$Diagnosis
+df$Diagnosis2 <- ifelse(df$trial_number %in% c(2:10), NA, df$Diagnosis2)
+
 # We need to ungroup afterewards, because the code (confusion matrix and roc != 1) works if i don't run these lines above
 df <- ungroup(df)
-
 
 # Making our models - only one fixed effect
     # we use subject ID as random intercept because of repeated measures. 
     # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
-just_variability_model <- glmer(Diagnosis ~ sd_f0_2 + (1 | ID), data = df, family = "binomial")
+just_variability_model <- glm(Diagnosis2 ~ sd_f0_2, data = df)
 just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
 just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
