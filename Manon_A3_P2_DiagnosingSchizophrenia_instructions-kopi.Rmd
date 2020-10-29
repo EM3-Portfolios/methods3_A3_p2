@@ -47,8 +47,12 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 library(lme4)
 library(tidyverse)
 library(caret)
+<<<<<<< HEAD
 install.packages(groupdata2)
 library(groupdata2)
+=======
+library(pROC)
+>>>>>>> 93e56a36a665d95fa69a92355479e6e16958f83f
 
 # loading dataframe from last time
 df <- read.csv("df_before_models-kopi.csv")
@@ -117,6 +121,7 @@ ggplot(df, aes(ID, Diagnosis))+
   geom_point()
 ```
 
+
 ```{r calculating performance measures - accuracy, sensitivity, specificity, PPV, NPV, ROC curve}
 # If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) would't it be a good idea to create a function that calculates and saves all 6 measures?
 
@@ -145,11 +150,22 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 # OK, accuracy, sensitivity, specificity, PPV and NPV are all 1. Very sus
 # Let's look at ROC 
 
+rocCurve_speechrate <- roc(response = df$Diagnosis, predictor = df$pred_speechrate)
+auc(rocCurve_speechrate)
+ci(rocCurve_speechrate)
+plot(rocCurve_speechrate, legacy.axes = TRUE)
+
 ```
 
 
 ```{r making a function to calculate performance measures}
+roc_and_confmat <- function(model, pred_predictor_name){
+  df$pred_predictor_name <- logit2prob(predict(model))
 
+  return(predictor_name)
+}
+
+roc_and_confmat(just_speechrate_model, pred_speechrate)
 ```
 
 
@@ -157,6 +173,17 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 # The following link explains choice of number of folds:
 # https://datascience.stackexchange.com/questions/28158/how-to-calculate-the-fold-number-k-fold-in-cross-validation
 
+# a problem you may run into when validating: balanced and unbalanced data
+# meaning unbalanced folds. The folds have to be balanced, so how do we tell them to do that?
+pacman::p_load(groupdata2)
 
+# we want to add a column to the df that gives a number to different parts of the dataset (folds)
+df$ID <- as.factor(df$ID)
+df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
+  #cat_col means categorizing column 
+  # also if we have repeated measures we don't want to split one participant over different fold
+
+ggplot(df, aes(.folds, Diagnosis))+
+  geom_jitter()
 ```
 

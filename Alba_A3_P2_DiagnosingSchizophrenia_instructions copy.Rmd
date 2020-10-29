@@ -48,6 +48,7 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 library(lme4)
 library(tidyverse)
 library(caret)
+library(pROC)
 
 df <- read_csv("/Users/al/RStudio/Semester 3/Experimental-Methods-3/Assignment 3/methods3_A3_p2/df_before_models-kopi.csv")
 dfpitch <- read_csv("/Users/al/RStudio/Semester 3/Experimental-Methods-3/Assignment 3/methods3_A3_p2/pitch_data_raw.csv")
@@ -56,7 +57,7 @@ dfpitch <- read_csv("/Users/al/RStudio/Semester 3/Experimental-Methods-3/Assignm
 
 ```{r}
 
-# let's use pause duration as out best aucustic feature, because that one has the highest effects size estimate from the last part. 
+# let's use pause duration as out best acoustic feature, because that one has the highest effects size estimate from the last part. 
 # It's also the feature that had the highest Hedge's G in the meta analysis. 
 
 # making sure Diagnosis as a factor to use for the logistic regression
@@ -96,6 +97,25 @@ ggplot(df, aes(speechrate..nsyll.dur., scz)) +
   geom_jitter(height = 0.05) +
   geom_smooth(method = "glm", method.args = list(family = "binomial"))
 
+#Now we'll make more models that combine different features
+
+variab_speech <- lme4::glmer(Diagnosis ~ scaled_sd_f0 + scaled_speechrate..nsyll.dur. + (1| ID), data= df, family= "binomial")
+summary(variab_speech)
+
+variab_prop <- lme4::glmer(Diagnosis~ scaled_sd_f0 + scaled_proportion_of_spoken_time + (1| ID), data= df, family= "binomial")
+summary(variab_prop)
+
+prop_speech <- lme4:: glmer(Diagnosis ~ scaled_proportion_of_spoken_time + scaled_speechrate..nsyll.dur. + (1| ID), data=df, family="binomial")
+summary(prop_speech)
+
+variab_pause <- lme4::glmer(Diagnosis ~ scaled_pause_duration + scaled_sd_f0 + (1 | ID), data = df, family = "binomial")
+summary(variab_pause)
+
+prop_pause <- lme4::glmer(Diagnosis ~ scaled_pause_duration + scaled_proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
+summary(prop_pause)
+
+speech_pause <- lme4::glmer(Diagnosis ~ scaled_pause_duration + scaled_speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial")
+summary(speech_pause)
 
 # I will now try to remove the outlier from pause_duration
 #Remove outliers
@@ -150,7 +170,10 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 
 # OK, accuracy, sensitivity, specificity, PPV and NPV are all 1. Very sus
 # Let's look at ROC 
-
+rocCurve_speechrate <- roc(response = df$Diagnosis, predictor = df$pred_speechrate)
+auc(rocCurve_speechrate)
+ci(rocCurve_speechrate)
+plot(rocCurve_speechrate, legacy.axes = TRUE)
 ```
 
 
@@ -160,7 +183,7 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 #Create cross validation folds
 d$Pred <- predict(m)
 d$DiagnosisPred <- as.factor(ifelse(d$Pred<0, "Control", "Schizophrenia"))
-d$ID <-= as.factor(d$ID)
+d$ID <- as.factor(d$ID)
 
 library(groupdata2)
 install.packages("groupdata2")
