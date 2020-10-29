@@ -73,7 +73,7 @@ df <- ungroup(df)
     # we use subject ID as random intercept because of repeated measures. 
     # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
-just_variability_model <- glmer(Diagnosis ~ sd_f0_2 + (1 | ID), data = df, family = "binomial")
+just_variability_model <- glm(Diagnosis2 ~ sd_f0_2, data = df)
 just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
 just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
