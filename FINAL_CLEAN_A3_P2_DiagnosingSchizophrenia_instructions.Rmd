@@ -59,21 +59,22 @@ df$Diagnosis <- as.factor(df$Diagnosis)
 df <- df %>%
   group_by(ID) %>%
   mutate(trial_number = row_number())
-df$sd_f0_2 <- df$sd_f0
-df$sd_f0_2 <- ifelse(df$trial_number %in% c(2:10), NA, df$sd_f0_2)
-
-# And also making a Diagnosis column with values for only the rows with sd_f0_2 values
-df$Diagnosis2 <- df$Diagnosis
-df$Diagnosis2 <- ifelse(df$trial_number %in% c(2:10), NA, df$Diagnosis2)
 
 # We need to ungroup afterewards, because the code (confusion matrix and roc != 1) works if i don't run these lines above
 df <- ungroup(df)
+
+# For pitch variability there are no repeated measures so we make a df2 for that where sd_f0 and Diagnosis has one measure per ID
+df2 <- df
+df2 <- na.omit(df2)
+df2$Diagnosis <- as.factor(df2$Diagnosis)
+df$sd_f0 <- ifelse(df2$trial_number %in% c(2:10), NA, df2$sd_f0)
+
 
 # Making our models - only one fixed effect
     # we use subject ID as random intercept because of repeated measures. 
     # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
-just_variability_model <- glm(Diagnosis2 ~ sd_f0_2, data = df)
+just_variability_model <- glm(Diagnosis ~ sd_f0, data = df2, na.action = "na.omit")
 just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
 just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
@@ -81,7 +82,7 @@ just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), da
 summary(just_pausedur_model)
 summary(just_variability_model)
 summary(just_proportion_model)
-summary(just_speechrate_model) # this is the only one that has ANY *** on fixed effect !
+summary(just_speechrate_model)
 ```
 
 
@@ -131,29 +132,29 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 ```{r making a function to calculate performance measures}
 # If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) it may be a good idea to create a function that calculates and saves all 6 measures
 
-roc_and_confmat <- function(model){
-  # first line of confusion matrix
-  pred_column <- logit2prob(predict(model))
+roc_and_confmat <- function(pred_column, diag_column){
   # roc curve
-  rocCurve <- roc(response = df$Diagnosis, predictor = pred_column)
+  rocCurve <- roc(response = diag_column, predictor = pred_column)
   areaUnderCurve <- auc(rocCurve)
   aucConfidenceInterval <- ci(rocCurve)
   # now back to confusion matrix
   pred_column[pred_column >0.5] = "Schizophrenia"
   pred_column[pred_column <=0.5] = "Control"
   pred_column <- as.factor(pred_column)
-  Diagnosis <- as.factor(df$Diagnosis)
-  confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis, positive = "Schizophrenia")
+  diag_column <- as.factor(diag_column)
+  confMatrix <- confusionMatrix(data = pred_column, reference = diag_column, positive = "Schizophrenia")
   # collect what we want to return
   ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value']), areaUnderCurve)
   return(ResultList)
 }
 
+
+# function 2 has not been updated to work in cross-validation
 roc_and_confmat2 <- function(model){
   # first line of confusion matrix
   pred_column <- logit2prob(predict(model))
   # roc curve
-  rocCurve <- roc(response = df$Diagnosis2, predictor = pred_column)
+  rocCurve <- roc(response = df$Diagnosis2, predictor = pred_column, na.rm = TRUE)
   areaUnderCurve <- auc(rocCurve)
   aucConfidenceInterval <- ci(rocCurve)
   # now back to confusion matrix
@@ -169,12 +170,10 @@ roc_and_confmat2 <- function(model){
 
 
 
-
-
 # This function will return accuracy, sensitivity, specificity, PPV, NPV in that order, and then area under the roc curve as the last value.
 # Now let's try it on all our 4 models
 roc_and_confmat(just_pausedur_model)
-roc_and_confmat2(just_variability_model) # doesn't work because of different lenghts of pred_column and df$Diagnosis
+# roc_and_confmat2(just_variability_model) # doesn't work because of different lenghts of pred_column and df$Diagnosis
 roc_and_confmat(just_proportion_model)
 roc_and_confmat(just_speechrate_model)
 ```
@@ -194,7 +193,33 @@ df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
   #cat_col means categorizing column 
   # also if we have repeated measures we don't want to split one participant over different fold
 
-ggplot(df, aes(.folds, Diagnosis))+
-  geom_jitter()
+
+library(car)
+df$ID <- as.numeric(df$ID)
+
+k <-  5
+folds <- createFolds(unique(df$ID), k = k, list = TRUE, returnTrain = FALSE)
+trainRMSE <- rep(NA, k)
+testRMSE <- rep(NA, k)
+i <- 1
+
+for (fold in folds){
+  train = subset(df, !(ID %in% fold))
+  test = subset(df, ID %in% fold)
+  model = glmer(scz ~ speechrate..nsyll.dur. + (1 | ID), data = train, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
+  test$prediction <- predict(model, test, allow.new.levels = TRUE)
+  train$prediction <- fitted(model)
+  trainRMSE[i] <- RMSE(train$scz, train$prediction)
+  testRMSE[i] <- RMSE(test$scz, test$prediction)
+  i <- i + 1
+  print(roc_and_confmat(test$prediction, test$Diagnosis))
+}
+
+trainRMSE
+testRMSE
+
+crossValidation <- data.frame(trainRMSE, testRMSE)
+crossValidation$diff <- abs(crossValidation$trainRMSE - crossValidation$testRMSE)
+mean(crossValidation$diff)
 ```
 
