@@ -79,7 +79,7 @@ df$sd_f0 <- ifelse(df2$trial_number %in% c(2:10), NA, df2$sd_f0)
     # we use subject ID as random intercept because of repeated measures. 
     # We do not use study (because we are only using the Danish data, and we previously concluded that the Danish studies are not different)
 just_pausedur_model <- glmer(Diagnosis ~ pause_duration + (1 | ID), data = df, family = "binomial")
-just_variability_model <- glm(Diagnosis ~ sd_f0, data = df2, na.action = "na.omit")
+just_variability_model <- glm(Diagnosis ~ sd_f0, data = df2, na.action = "na.omit", family = "binomial")
 just_proportion_model <- glmer(Diagnosis ~ proportion_of_spoken_time + (1 | ID), data = df, family = "binomial")
 just_speechrate_model <- glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = df, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
 
@@ -178,7 +178,7 @@ roc_and_confmat2 <- function(model){
 # This function will return accuracy, sensitivity, specificity, PPV, NPV in that order, and then area under the roc curve as the last value.
 # Now let's try it on all our 4 models
 roc_and_confmat(just_pausedur_model)
-# roc_and_confmat2(just_variability_model) # doesn't work because of different lenghts of pred_column and df$Diagnosis
+roc_and_confmat(logit2prob(predict(just_variability_model, df2$Diagnosis))) # doesn't work because of different lenghts of pred_column and df$Diagnosis
 roc_and_confmat(just_proportion_model)
 roc_and_confmat(just_speechrate_model)
 ```
