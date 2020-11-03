@@ -195,6 +195,32 @@ roc_and_confmat(just_speechrate_model)
 
 
 ```{r}
+
+df$pred_sp
+
+roc_and_confmat_3 <- function(prediction){
+  # first line of confusion matrix
+  pred_column <- logit2prob(predict(model))
+  # roc curve
+  rocCurve <- roc(response = df$Diagnosis, predictor = pred_column)
+  areaUnderCurve <- auc(rocCurve)
+  aucConfidenceInterval <- ci(rocCurve)
+  # now back to confusion matrix
+  pred_column[pred_column >0.5] = "Schizophrenia"
+  pred_column[pred_column <=0.5] = "Control"
+  pred_column <- as.factor(pred_column)
+  Diagnosis <- as.factor(df$Diagnosis)
+  confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis, positive = "Schizophrenia")
+  # collect what we want to return
+  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value']), areaUnderCurve)
+  return(ResultList)
+}
+```
+
+
+```{r}
+
+
 df$ID <- as.numeric(df$ID)
 
 k <-  10
