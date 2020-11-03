@@ -194,6 +194,36 @@ roc_and_confmat(just_speechrate_model)
 ```
 
 
+```{r}
+df$ID <- as.numeric(df$ID)
+
+k <-  10
+folds <- createFolds(unique(df$ID), k = k, list = TRUE, returnTrain = FALSE)
+trainRMSE_m6 <- rep(NA, k)
+testRMSE_m6 <- rep(NA, k)
+i <- 1
+
+for (fold in folds){
+  train = subset(df, !(ID %in% fold))
+  test = subset(df, ID %in% fold)
+  model = glmer(Diagnosis ~ speechrate..nsyll.dur. + (1 | ID), data = train, family = "binomial")
+  test$prediction <- predict(model, test, allow.new.levels = TRUE)
+  train$prediction <- fitted(model)
+  trainRMSE_m6[i] <- RMSE(train$Diagnosis, fitted(model))
+  testRMSE_m6[i] <- RMSE(test$Diagnosis, test$prediction)
+  i <- i + 1
+  # print(roc_and_confmat(model))
+}
+
+
+
+
+
+```
+
+
+
+
 ```{r cross-validation}
 # The following link explains choice of number of folds:
 # https://datascience.stackexchange.com/questions/28158/how-to-calculate-the-fold-number-k-fold-in-cross-validation
