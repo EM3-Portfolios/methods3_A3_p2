@@ -236,7 +236,33 @@ df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
   #cat_col means categorizing column 
   # also if we have repeated measures we don't want to split one participant over different fold
 
-ggplot(df, aes(.folds, Diagnosis))+
-  geom_jitter()
+
+
+#from pf2p2
+k <-  10
+folds <- createFolds(unique(df$Child.ID), k = k, list = TRUE, returnTrain = FALSE)
+trainRMSE_m8 <- rep(NA, k)
+testRMSE_m8 <- rep(NA, k)
+i <- 1
+
+for (fold in folds){
+  train <-subset(df, !(Child.ID %in% fold))
+  test <- subset(df, Child.ID %in% fold)
+  model <- lmer(CHI_MLU ~ Age * I(ADOS1^2) + verbalIQ1 + (1 | Child.ID), train)
+  test$prediction <- predict(model, test, allow.new.levels = TRUE)
+  train$prediction <- fitted(model)
+  trainRMSE_m8[i] <- RMSE(train$CHI_MLU, fitted(model))
+  testRMSE_m8[i] <- RMSE(test$CHI_MLU, test$prediction)
+  i <- i + 1
+}
+
+trainRMSE_m8
+testRMSE_m8
+
+crossValidation <- data.frame(trainRMSE_m8, testRMSE_m8)
+crossValidation$m8_diff <- abs(crossValidation$trainRMSE_m8 - crossValidation$testRMSE_m8)
+mean(crossValidation$m8_diff)
+
+
 ```
 
