@@ -52,6 +52,11 @@ library(pROC)
 # Loading dataframe from last time
 df <- read.csv("df_before_models-kopi.csv")
 
+#Counting how many participants were control and schizophrenia
+df3 <- group_by(df, Diagnosis)
+table <- df3 %>% count(Diagnosis, sort = TRUE)
+as.tibble(table)
+
 # Making sure Diagnosis as a factor to use for the logistic regression
 df$Diagnosis <- as.factor(df$Diagnosis)
 
