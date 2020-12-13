@@ -43,7 +43,7 @@ N.N.N.N.B. A more advanced solution could rely on the tidymodels set of packages
 
 
 
-```{r loading data and creating models}
+```{r loading data and creating models, Lærke}
 library(lme4)
 library(tidyverse)
 library(caret)
@@ -91,7 +91,7 @@ summary(just_speechrate_model)
 ```
 
 
-```{r calculating performance measures - accuracy, sensitivity, specificity, PPV, NPV, ROC curve}
+```{r calculating performance measures, Cecilie}
 
 # First we need to define this function to define the predicted values (we need those for both the ROC and confusion matrix): 
 # source: https://sebastiansauer.github.io/convert_logit2prob/
@@ -134,7 +134,7 @@ confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = 
 ```
 
 
-```{r making a function to calculate performance measures}
+```{r making a function to calculate performance measures, Manon}
 # If we have to recalculate all perfomrance measures on the folds in the next task (cross-validation) it may be a good idea to create a function that calculates and saves all 6 measures
 
 roc_and_confmat <- function(pred_column, diag_column){
@@ -184,7 +184,7 @@ roc_and_confmat(just_speechrate_model)
 ```
 
 
-```{r cross-validation}
+```{r cross-validation, Anne & Alba}
 # The following link explains choice of number of folds:
 # https://datascience.stackexchange.com/questions/28158/how-to-calculate-the-fold-number-k-fold-in-cross-validation
 
