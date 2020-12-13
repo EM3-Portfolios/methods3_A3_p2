@@ -70,9 +70,9 @@ df <- ungroup(df)
 
 # For pitch variability there are no repeated measures so we make a df2 for that where sd_f0 and Diagnosis has one measure per ID
 df2 <- df
+df2$sd_f0 <- ifelse(df2$trial_number %in% c(2:10), NA, df2$sd_f0)
 df2 <- na.omit(df2)
 df2$Diagnosis <- as.factor(df2$Diagnosis)
-df$sd_f0 <- ifelse(df2$trial_number %in% c(2:10), NA, df2$sd_f0)
 
 
 # Making our models - only one fixed effect
@@ -88,6 +88,8 @@ summary(just_pausedur_model)
 summary(just_variability_model)
 summary(just_proportion_model)
 summary(just_speechrate_model)
+
+# we chose the pitch variability (sd_f0) as our best feature, mainly because of the AIC and BIC values.
 ```
 
 
@@ -106,7 +108,7 @@ options(scipen = 999)
 
 
 
-# This shouldn't be included in the final code, but we have to run this before the rest of this chunk in order to not get accuracy = 1.
+# This shouldn't theoretically be here, but we have to run this before the rest of this chunk in order to not get accuracy = 1.
 #
 pacman::p_load(groupdata2)
 df$ID <- as.factor(df$ID)
@@ -114,7 +116,7 @@ df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
 #
 
 
-
+# This is the way to do it manually, where we are using the speechrate model as an example.
 # Confusion Matrix - here is the confusion matrix code, taken and adapted from the powerpoint of this week's lecture (continued below)
 df$pred_speechrate <- logit2prob(predict(just_speechrate_model))
 
@@ -130,6 +132,13 @@ df$pred_speechrate[df$pred_speechrate <=0.5] = "Control" # something is wrong he
 df$pred_speechrate <-  as.factor(df$pred_speechrate)
 df$Diagnosis <- as.factor(df$Diagnosis)
 confusionMatrix(data = df$pred_speechrate, reference = df$Diagnosis, positive = "Schizophrenia")
+
+
+
+# roc curve for pitch variability, the chosen predictor
+pred_variability <- logit2prob(predict(just_variability_model))
+rocCurve_variability <- roc(response = df2$Diagnosis, predictor = pred_variability)
+plot(rocCurve_variability, legacy.axes = TRUE)
 
 ```
 
@@ -154,33 +163,12 @@ roc_and_confmat <- function(pred_column, diag_column){
 }
 
 
-# function 2 has not been updated to work in cross-validation
-roc_and_confmat2 <- function(model){
-  # first line of confusion matrix
-  pred_column <- logit2prob(predict(model))
-  # roc curve
-  rocCurve <- roc(response = df$Diagnosis2, predictor = pred_column, na.rm = TRUE)
-  areaUnderCurve <- auc(rocCurve)
-  aucConfidenceInterval <- ci(rocCurve)
-  # now back to confusion matrix
-  pred_column[pred_column >0.5] = "Schizophrenia"
-  pred_column[pred_column <=0.5] = "Control"
-  pred_column <- as.factor(pred_column)
-  Diagnosis <- as.factor(df$Diagnosis2)
-  confMatrix <- confusionMatrix(data = pred_column, reference = df$Diagnosis2, positive = "Schizophrenia")
-  # collect what we want to return
-  ResultList <- list(c(confMatrix$overall['Accuracy'], confMatrix$byClass['Sensitivity'], confMatrix$byClass['Specificity'], confMatrix$byClass['Pos Pred Value'], confMatrix$byClass['Neg Pred Value']), areaUnderCurve)
-  return(ResultList)
-}
-
-
-
 # This function will return accuracy, sensitivity, specificity, PPV, NPV in that order, and then area under the roc curve as the last value.
 # Now let's try it on all our 4 models
-roc_and_confmat(just_pausedur_model)
-roc_and_confmat(logit2prob(predict(just_variability_model, df2$Diagnosis))) # doesn't work because of different lenghts of pred_column and df$Diagnosis
-roc_and_confmat(just_proportion_model)
-roc_and_confmat(just_speechrate_model)
+roc_and_confmat(logit2prob(predict(just_pausedur_model)), df$Diagnosis)
+roc_and_confmat(logit2prob(predict(just_variability_model)), df2$Diagnosis)
+roc_and_confmat(logit2prob(predict(just_proportion_model)), df$Diagnosis)
+roc_and_confmat(logit2prob(predict(just_speechrate_model)), df$Diagnosis)
 ```
 
 
@@ -191,40 +179,32 @@ roc_and_confmat(just_speechrate_model)
 # a problem you may run into when validating: balanced and unbalanced data
 # meaning unbalanced folds. The folds have to be balanced, so how do we tell them to do that?
 pacman::p_load(groupdata2)
+pacman::p_load(cvms)
 
 # we want to add a column to the df that gives a number to different parts of the dataset (folds)
-df$ID <- as.factor(df$ID)
-df <- fold(df, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
+df2$ID <- as.factor(df2$ID)
+df2 <- fold(df2, k = 5, cat_col = "Diagnosis", id_col = "ID") %>% arrange(.folds)
   #cat_col means categorizing column 
   # also if we have repeated measures we don't want to split one participant over different fold
 
+# cross_validate function from cvms
+ pitchvar_cv <- as.data.frame(cross_validate(
+      df2,
+      formulas = "Diagnosis ~ sd_f0",
+      family = "binomial",
+      fold_cols = ".folds",
+      REML = FALSE,
+      positive = "Schizophrenia",
+))
+ 
+head(pitchvar_cv)
 
-library(car)
-df$ID <- as.numeric(df$ID)
 
-k <-  5
-folds <- createFolds(unique(df$ID), k = k, list = TRUE, returnTrain = FALSE)
-trainRMSE <- rep(NA, k)
-testRMSE <- rep(NA, k)
-i <- 1
+# invetigating why our model is shit
+pvar_cv_predictions <- as.data.frame(pitchvar_cv$Predictions) # the prediction column is a number between 0 and 1, dictating the categorization.
+pvar_cv_predictions$Prediction_50centered <- pvar_cv_predictions$Prediction - 0.5 # subtracting 0.5 because thats where the cutoff for categorization is
+mean(abs(pvar_cv_predictions$Prediction_50centered)) # absolute values because we want distance, and so they don't cancel eachother out.
+# on avaerage, our predictions are only 3% points away from being 50-50 toss up between Schizophrenia and Control.
 
-for (fold in folds){
-  train = subset(df, !(ID %in% fold))
-  test = subset(df, ID %in% fold)
-  model = glmer(scz ~ speechrate..nsyll.dur. + (1 | ID), data = train, family = "binomial", glmerControl(optimizer = "nloptwrap", calc.derivs = FALSE))
-  test$prediction <- predict(model, test, allow.new.levels = TRUE)
-  train$prediction <- fitted(model)
-  trainRMSE[i] <- RMSE(train$scz, train$prediction)
-  testRMSE[i] <- RMSE(test$scz, test$prediction)
-  i <- i + 1
-  print(roc_and_confmat(test$prediction, test$Diagnosis))
-}
-
-trainRMSE
-testRMSE
-
-crossValidation <- data.frame(trainRMSE, testRMSE)
-crossValidation$diff <- abs(crossValidation$trainRMSE - crossValidation$testRMSE)
-mean(crossValidation$diff)
 ```
 
